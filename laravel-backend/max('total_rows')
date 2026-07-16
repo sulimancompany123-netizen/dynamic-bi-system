@@ -1,0 +1,22 @@
+
+   InvalidArgumentException 
+
+  Unexpected end of input
+
+  at vendor\psy\psysh\src\Shell.php:1481
+    1477▕ 
+    1478▕         if (!$this->hasValidCode()) {
+    1479▕             $this->popCodeStack();
+    1480▕ 
+  ➜ 1481▕             throw new \InvalidArgumentException('Unexpected end of input');
+    1482▕         }
+    1483▕     }
+    1484▕ 
+    1485▕     /**
+
+  1   vendor\psy\psysh\src\Shell.php:2180
+      Psy\Shell::setCode("echo+DB::table('data_files')-")
+
+  2   vendor\laravel\tinker\src\Console\TinkerCommand.php:77
+      Psy\Shell::execute("echo+DB::table('data_files')-")
+

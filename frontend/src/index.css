@@ -1,0 +1,364 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Local (self-hosted) paid font: itf Qomra Arabic.
+   Not available on Google Fonts, so the files are bundled in /public/fonts and
+   declared here. All five weights share one family name ("itf Qomra Arabic")
+   so `font-weight` selects the right file. woff2 first (smaller), woff fallback.
+   To use it, pick "itf Qomra Arabic" in the font picker (added via the font
+   manager). PDF export rasterizes the screen, so it exports correctly.
+--------------------------------------------------------------------------- */
+@font-face {
+  font-family: 'itf Qomra Arabic';
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/itfQomraArabic-Light.woff2') format('woff2'),
+       url('/fonts/itfQomraArabic-Light.woff') format('woff');
+}
+@font-face {
+  font-family: 'itf Qomra Arabic';
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/itfQomraArabic-Regular.woff2') format('woff2'),
+       url('/fonts/itfQomraArabic-Regular.woff') format('woff');
+}
+@font-face {
+  font-family: 'itf Qomra Arabic';
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/itfQomraArabic-Medium.woff2') format('woff2'),
+       url('/fonts/itfQomraArabic-Medium.woff') format('woff');
+}
+@font-face {
+  font-family: 'itf Qomra Arabic';
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/itfQomraArabic-Bold.woff2') format('woff2'),
+       url('/fonts/itfQomraArabic-Bold.woff') format('woff');
+}
+@font-face {
+  font-family: 'itf Qomra Arabic';
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/itfQomraArabic-Black.woff2') format('woff2'),
+       url('/fonts/itfQomraArabic-Black.woff') format('woff');
+}
+
+.ProseMirror table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1rem 0;
+}
+
+.ProseMirror th,
+.ProseMirror td {
+  border: 1px solid #d1d5db;
+  padding: 8px 12px;
+  text-align: right;
+}
+
+.ProseMirror th {
+  background-color: #f9fafb;
+  font-weight: bold;
+}
+
+.ProseMirror table .selectedCell {
+  background-color: #ecfdf5;
+}
+
+/* Highlight (تظليل): give the coloured mark some padding and rounded corners so it reads as a
+   soft pill behind the text instead of a tight rectangle. box-decoration-break keeps the padding
+   and radius on every line fragment when a highlight wraps across lines. */
+.ProseMirror mark {
+  padding: 0.1em 0.3em;
+  border-radius: 0.35em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.image-resize-handle {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 14px;
+  height: 14px;
+  background: #054239;
+  border: 2px solid white;
+  border-radius: 2px;
+  cursor: se-resize;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.image-wrapper:hover .image-resize-handle,
+.image-wrapper.selected .image-resize-handle {
+  opacity: 1;
+}
+
+.chart-resize-handle {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 16px;
+  height: 16px;
+  background: #054239;
+  border: 2px solid white;
+  border-radius: 3px;
+  cursor: se-resize;
+  z-index: 15;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.chart-node-wrapper:hover .chart-resize-handle {
+  opacity: 1;
+}
+
+/* Reveal the "تخصيص" (customize) button whenever the chart card is hovered, so the
+   background/opacity and other controls are easy to find. */
+.chart-node-wrapper:hover .chart-edit-btn {
+  opacity: 1;
+}
+.chart-edit-btn:hover {
+  opacity: 1;
+}
+
+.image-wrapper {
+  position: relative;
+  display: block;
+  line-height: 0;
+}
+
+.image-wrapper > img {
+  display: block;
+  max-width: 100%;
+}
+
+.image-wrapper[data-alignment="left"] {
+  float: left;
+  margin-right: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.image-wrapper[data-alignment="center"] {
+  float: none;
+  display: table;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.image-wrapper[data-alignment="right"] {
+  float: right;
+  margin-left: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.image-wrapper.selected {
+  outline: 2px solid #054239;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.image-toolbar {
+  position: absolute;
+  top: -40px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #054239;
+  border-radius: 8px;
+  padding: 4px 6px;
+  display: flex;
+  gap: 4px;
+  z-index: 20;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  direction: ltr;
+}
+
+.image-toolbar button {
+  background: none;
+  border: none;
+  color: white;
+  padding: 3px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  transition: background 0.15s;
+}
+
+.image-toolbar button:hover {
+  background: rgba(255,255,255,0.2);
+}
+
+.image-toolbar button.active {
+  background: rgba(255,255,255,0.3);
+}
+
+.image-toolbar button.delete-btn:hover {
+  background: #dc2626;
+}
+
+.table-float-toolbar {
+  position: fixed;
+  z-index: 30;
+  background: #054239;
+  border-radius: 8px;
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  direction: ltr;
+}
+
+.table-float-toolbar button {
+  background: none;
+  border: none;
+  color: white;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.table-float-toolbar button:hover {
+  background: rgba(255,255,255,0.2);
+}
+
+.table-float-toolbar button.del:hover {
+  background: #dc2626;
+}
+
+.table-float-toolbar .sep {
+  width: 1px;
+  height: 16px;
+  background: rgba(255,255,255,0.3);
+}
+
+/* Per-page background layer: one tile per A4 page region so the report background repeats on
+   every page (top of page → cut line) instead of stretching over the whole scroll. Sits below
+   the editor text; excluded from the PDF capture (data-html2canvas-ignore). */
+.page-backgrounds {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+  border-radius: inherit;
+}
+.page-bg-tile {
+  position: absolute;
+  left: 0;
+  right: 0;
+}
+
+/* Live A4 page-cut guides drawn over the continuous editor. Each marker sits exactly where the
+   export will cut a page, so the user can see pagination without opening the معاينة modal. */
+.page-guides {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+.page-guide {
+  position: absolute;
+  left: 0;
+  right: 0;
+  opacity: 0.9;
+}
+.page-guide-end {
+  border-top: 2px dashed #988561;
+}
+.page-guide-start {
+  border-top: 2px dashed #428177;
+}
+.page-guide-label {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #f5f2ea;
+  border: 1px solid rgba(152, 133, 97, 0.4);
+  color: #054239;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+/* End label sits above its line, start label below, so they don't collide in the margin band. */
+.page-guide-end .page-guide-label {
+  top: -0.75rem;
+}
+.page-guide-start .page-guide-label {
+  top: 0.25rem;
+  border-color: rgba(66, 129, 119, 0.4);
+}
+
+/* Footer page numbers drawn in each page's bottom margin. Editor-only preview of what the export
+   paints onto the PDF; sits above the background tiles and never blocks editing. */
+.page-numbers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+.page-number {
+  position: absolute;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* Live pagination spacer: an empty, non-editable gap in the text flow at each page boundary. It's
+   transparent so the background tile (footer of this page / header of the next) shows through. */
+.pagination-gap {
+  display: block;
+  width: 100%;
+  background: transparent;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Print / Export to PDF: show only the report content */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #report-print-area,
+  #report-print-area * {
+    visibility: visible;
+  }
+  #report-print-area {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+  }
+  .image-resize-handle,
+  .chart-resize-handle,
+  .image-toolbar,
+  .table-float-toolbar,
+  .page-guides,
+  .page-backgrounds {
+    display: none !important;
+  }
+}

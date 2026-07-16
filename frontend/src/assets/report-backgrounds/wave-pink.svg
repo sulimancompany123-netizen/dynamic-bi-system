@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="1754" viewBox="0 0 1240 1754" preserveAspectRatio="none">
+  <g fill="none" stroke-linecap="round" stroke-dasharray="2 16" stroke-width="6">
+    <!-- top cluster of pink dotted waves -->
+    <path d="M -40 80 q 77.5 -36 155 0 t 155 0 t 155 0 t 155 0 t 155 0 t 155 0 t 155 0 t 155 0 t 155 0" stroke="#ec4899" opacity="0.9"/>
+    <path d="M -40 120 q 77.5 -36 155 0 t 155 0 t 155 0 t 155 0 t 155 0 t 155 0 t 155 0 t 155 0 t 155 0" stroke="#f472b6" opacity="0.75"/>
+    <path d="M -40 160 q 77.5 -36 155 0 t 155 0 t 155 0 t 155 0 t 155 0 t 155 0 t 155 0 t 155 0 t 155 0" stroke="#f9a8d4" opacity="0.65"/>
+    <path d="M -40 200 q 77.5 -36 155 0 t 155 0 t 155 0 t 155 0 t 155 0 t 155 0 t 155 0 t 155 0 t 155 0" stroke="#fbcfe8" opacity="0.6"/>
+    <!-- bottom cluster of pink dotted waves -->
+    <path d="M -40 1565 q 77.5 -36 155 0 t 155 0 t 155 0 t 155 0 t 155 0 t 155 0 t 155 0 t 155 0 t 155 0" stroke="#fbcfe8" opacity="0.6"/>
+    <path d="M -40 1605 q 77.5 -36 155 0 t 155 0 t 155 0 t 155 0 t 155 0 t 155 0 t 155 0 t 155 0 t 155 0" stroke="#f9a8d4" opacity="0.65"/>
+    <path d="M -40 1645 q 77.5 -36 155 0 t 155 0 t 155 0 t 155 0 t 155 0 t 155 0 t 155 0 t 155 0 t 155 0" stroke="#f472b6" opacity="0.75"/>
+    <path d="M -40 1685 q 77.5 -36 155 0 t 155 0 t 155 0 t 155 0 t 155 0 t 155 0 t 155 0 t 155 0 t 155 0" stroke="#ec4899" opacity="0.9"/>
+  </g>
+</svg>

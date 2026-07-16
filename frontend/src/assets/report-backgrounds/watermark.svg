@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="1754" viewBox="0 0 1240 1754" preserveAspectRatio="none">
+  <!-- soft corner blobs -->
+  <g fill="#428177" opacity="0.08">
+    <circle cx="0" cy="0" r="320"/>
+    <circle cx="1240" cy="1754" r="320"/>
+  </g>
+  <!-- faint centered emblem -->
+  <g opacity="0.06" fill="none" stroke="#054239" stroke-width="14">
+    <circle cx="620" cy="877" r="240"/>
+    <circle cx="620" cy="877" r="170"/>
+  </g>
+  <g opacity="0.06" fill="#054239">
+    <rect x="600" y="637" width="40" height="480"/>
+    <rect x="380" y="857" width="480" height="40"/>
+  </g>
+</svg>

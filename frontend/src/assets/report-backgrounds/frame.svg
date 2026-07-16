@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="1754" viewBox="0 0 1240 1754" preserveAspectRatio="none">
+  <rect x="44" y="44" width="1152" height="1666" fill="none" stroke="#054239" stroke-width="6"/>
+  <rect x="60" y="60" width="1120" height="1634" fill="none" stroke="#428177" stroke-width="2"/>
+  <!-- corner ornaments -->
+  <g fill="#054239">
+    <path d="M44 44 h120 v10 h-110 v110 h-10 z"/>
+    <path d="M1196 44 h-120 v10 h110 v110 h10 z"/>
+    <path d="M44 1710 h120 v-10 h-110 v-110 h-10 z"/>
+    <path d="M1196 1710 h-120 v-10 h110 v-110 h10 z"/>
+  </g>
+</svg>

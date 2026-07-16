@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="1754" viewBox="0 0 1240 1754" preserveAspectRatio="none">
+  <defs>
+    <pattern id="dotGrid" x="0" y="0" width="46" height="46" patternUnits="userSpaceOnUse">
+      <circle cx="4" cy="4" r="3" fill="#428177"/>
+    </pattern>
+  </defs>
+  <rect x="40" y="40" width="1160" height="1674" fill="url(#dotGrid)" opacity="0.18"/>
+  <rect x="36" y="36" width="1168" height="1682" fill="none" stroke="#054239" stroke-width="3"/>
+</svg>
