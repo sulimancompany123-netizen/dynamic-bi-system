@@ -72,7 +72,7 @@ function makeWrapLabel(wrapChars) {
   };
 }
 
-export default function ChartView({ chart, chartData, currentFilters, globalFilters, onChartClick, onDelete, onEdit, token, fileId, readOnly = false }) {
+export default function ChartView({ chart, chartData, currentFilters, globalFilters, onChartClick, onDelete, onEdit, token, fileId, readOnly = false, fixedHeight = null }) {
   const [chartOptions, setChartOptions] = useState(null);
   const [loading, setLoading] = useState(true);
   const dataAttemptedRef = useRef(false);
@@ -245,7 +245,7 @@ export default function ChartView({ chart, chartData, currentFilters, globalFilt
   if (chartData === null && dataAttemptedRef.current && loading) {
     return (
       <div className={`bg-white border border-gray-200 rounded-xl p-4 shadow-sm ${chart.chartWidth === 'w-full' ? 'col-span-1 md:col-span-2' : 'col-span-1'}`}>
-        <div className="h-[300px] flex items-center justify-center text-sm text-gray-400">لم يتم تحميل البيانات</div>
+        <div style={fixedHeight ? { height: fixedHeight } : undefined} className={`${fixedHeight ? '' : 'h-[300px]'} flex items-center justify-center text-sm text-gray-400`}>لم يتم تحميل البيانات</div>
       </div>
     );
   }
@@ -268,7 +268,7 @@ export default function ChartView({ chart, chartData, currentFilters, globalFilt
         {chartOptions && (
           <ReactECharts
             option={chartOptions}
-            style={{ height: `${computeLayout(chart, chartData).chartHeight}px`, width: '100%' }}
+            style={{ height: `${fixedHeight || computeLayout(chart, chartData).chartHeight}px`, width: '100%' }}
             onEvents={readOnly ? {} : { 'click': (params) => onChartClick(params, chart) }}
           />
         )}

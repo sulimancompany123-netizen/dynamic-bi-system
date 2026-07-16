@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react'
 import {
   LayoutDashboard, Loader2, ArrowLeft, Plus, Trash2, Save, Image as ImageIcon,
-  BarChart3, Users, X, Check, Eye, Maximize2, Minimize2, ChevronLeft, ChevronRight, Pencil,
+  BarChart3, Users, X, Check, Eye, ChevronLeft, ChevronRight, Pencil,
 } from 'lucide-react'
 import { apiGet, apiPut, apiPost, apiUpload } from '../api'
 import ChartView from './ChartView'
 import DashboardViewer from './DashboardViewer'
-import { COLUMN_CHOICES, DEFAULT_COLUMNS, gridClass, itemSpanClass, normalizeColumns } from '../lib/dashboardLayout'
+import { WIDTH_CHOICES, DEFAULT_WIDTH, normalizeWidth, itemWidthPx, CARD_HEIGHT } from '../lib/dashboardLayout'
 
 const uid = (p) => `${p}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
 const noop = () => {}
@@ -59,7 +59,7 @@ function AddChartModal({ projectId, onAdd, onClose }) {
           id: itemId,
           type: 'chart',
           file_id: selectedTree.file_id,
-          width: 'half',
+          width: DEFAULT_WIDTH,
           config: { ...chart, id: itemId },
         })
         dataMap[itemId] = data[chartId] ?? null
@@ -221,8 +221,7 @@ export default function DashboardEditor({ dashboard, project, onBack }) {
         const res = await apiGet(`/api/dashboards/${dashboard.id}`)
         if (res.status === 'success') {
           setName(res.data.name)
-          // Tabs saved before the column setting existed fall back to the old fixed layout.
-          const loadedTabs = (res.data.structure?.tabs || []).map(t => ({ ...t, columns: normalizeColumns(t.columns) }))
+          const loadedTabs = res.data.structure?.tabs || []
           setTabs(loadedTabs)
           setActiveTabId(loadedTabs[0]?.id || null)
           setPreviewData(res.data.chart_data || {})
@@ -244,7 +243,7 @@ export default function DashboardEditor({ dashboard, project, onBack }) {
 
   // --- Tab operations ---
   const addTab = () => {
-    const newTab = { id: uid('tab'), name: `تبويب ${tabs.length + 1}`, items: [], columns: DEFAULT_COLUMNS }
+    const newTab = { id: uid('tab'), name: `تبويب ${tabs.length + 1}`, items: [] }
     setTabs(prev => [...prev, newTab])
     setActiveTabId(newTab.id)
   }
@@ -263,8 +262,6 @@ export default function DashboardEditor({ dashboard, project, onBack }) {
     })
   }
 
-  const setColumns = (n) => setTabs(prev => prev.map(t => t.id === activeTab.id ? { ...t, columns: n } : t))
-
   // --- Item operations ---
   const addCharts = (items, dataMap) => {
     updateActiveItems(list => [...list, ...items])
@@ -278,7 +275,7 @@ export default function DashboardEditor({ dashboard, project, onBack }) {
     try {
       const res = await apiUpload('/api/reports/upload-image', file)
       const url = res?.data?.url
-      if (url) updateActiveItems(list => [...list, { id: uid('item'), type: 'image', url, width: 'half' }])
+      if (url) updateActiveItems(list => [...list, { id: uid('item'), type: 'image', url, width: DEFAULT_WIDTH }])
     } catch (err) {
       alert(err.message || 'فشل رفع الصورة')
     } finally {
@@ -286,7 +283,7 @@ export default function DashboardEditor({ dashboard, project, onBack }) {
     }
   }
   const removeItem = (itemId) => updateActiveItems(list => list.filter(i => i.id !== itemId))
-  const toggleWidth = (itemId) => updateActiveItems(list => list.map(i => i.id === itemId ? { ...i, width: i.width === 'full' ? 'half' : 'full' } : i))
+  const setItemWidth = (itemId, n) => updateActiveItems(list => list.map(i => i.id === itemId ? { ...i, width: n } : i))
   const moveItem = (itemId, dir) => updateActiveItems(list => {
     const idx = list.findIndex(i => i.id === itemId)
     const target = idx + dir
@@ -326,7 +323,6 @@ export default function DashboardEditor({ dashboard, project, onBack }) {
   }
 
   const items = activeTab?.items || []
-  const columns = normalizeColumns(activeTab?.columns)
 
   return (
     <div className="max-w-6xl mx-auto p-6" dir="rtl">
@@ -401,23 +397,7 @@ export default function DashboardEditor({ dashboard, project, onBack }) {
               <input type="file" accept="image/*" onChange={handleUploadImage} className="hidden" />
             </label>
 
-            <div className="mr-auto flex items-center gap-2">
-              <span className="text-xs font-bold text-gray-500">عدد العناصر في الصف</span>
-              <div className="flex items-center gap-1 bg-gray-100 border border-gray-200 rounded-xl p-1">
-                {COLUMN_CHOICES.map(n => (
-                  <button
-                    key={n}
-                    onClick={() => setColumns(n)}
-                    title={`${n} في الصف`}
-                    className={`w-7 h-7 rounded-lg text-xs font-bold transition-colors ${
-                      columns === n ? 'bg-[#054239] text-white' : 'text-gray-600 hover:bg-white'
-                    }`}
-                  >
-                    {n}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <span className="mr-auto text-[11px] text-gray-400">مرّر فوق أي مخطط لتحديد عرضه (1–4)</span>
           </div>
 
           {items.length === 0 ? (
@@ -426,28 +406,39 @@ export default function DashboardEditor({ dashboard, project, onBack }) {
               <p className="text-sm text-gray-500">هذا التبويب فارغ. أضف مخططاً أو صورة.</p>
             </div>
           ) : (
-            <div className={gridClass(columns)}>
+            <div className="flex flex-wrap gap-4 content-start overflow-x-auto">
               {items.map(item => (
-                <div key={item.id} className={`relative group ${itemSpanClass(columns, item.width)}`}>
+                <div key={item.id} style={{ width: itemWidthPx(item.width) }} className="relative group shrink-0">
                   {/* Item controls */}
                   <div className="absolute top-2 left-2 z-10 flex items-center gap-1 bg-white/95 border border-gray-200 rounded-lg shadow-sm p-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button onClick={() => moveItem(item.id, -1)} className="p-1 text-gray-500 hover:text-[#054239]" title="تحريك لليسار"><ChevronRight className="w-3.5 h-3.5" /></button>
                     <button onClick={() => moveItem(item.id, 1)} className="p-1 text-gray-500 hover:text-[#054239]" title="تحريك لليمين"><ChevronLeft className="w-3.5 h-3.5" /></button>
-                    {columns > 1 && (
-                      <button onClick={() => toggleWidth(item.id)} className="p-1 text-gray-500 hover:text-[#054239]" title="تبديل العرض">
-                        {item.width === 'full' ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                    <span className="w-px h-4 bg-gray-200 mx-0.5" />
+                    {/* Chart width: units 1..4 × base width */}
+                    {WIDTH_CHOICES.map(n => (
+                      <button
+                        key={n}
+                        onClick={() => setItemWidth(item.id, n)}
+                        title={`عرض ${n}`}
+                        className={`w-5 h-5 rounded text-[10px] font-bold transition-colors ${
+                          normalizeWidth(item.width) === n ? 'bg-[#054239] text-white' : 'text-gray-500 hover:bg-gray-100'
+                        }`}
+                      >
+                        {n}
                       </button>
-                    )}
+                    ))}
+                    <span className="w-px h-4 bg-gray-200 mx-0.5" />
                     <button onClick={() => removeItem(item.id)} className="p-1 text-red-400 hover:text-red-600" title="إزالة"><Trash2 className="w-3.5 h-3.5" /></button>
                   </div>
 
                   {item.type === 'image' ? (
-                    <img src={item.url} alt="" className="w-full rounded-xl border border-gray-200 shadow-sm" />
+                    <img src={item.url} alt="" style={{ height: CARD_HEIGHT }} className="w-full rounded-xl border border-gray-200 shadow-sm object-contain bg-white" />
                   ) : (
                     <ChartView
                       chart={{ ...item.config, id: item.id, chartWidth: '' }}
                       chartData={previewData[item.id] ?? null}
                       readOnly
+                      fixedHeight={CARD_HEIGHT}
                       onChartClick={noop} onEdit={noop} onDelete={noop}
                     />
                   )}
