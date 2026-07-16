@@ -7,7 +7,7 @@ import bgWatermark from '../assets/report-backgrounds/watermark.svg'
 import bgWavePink from '../assets/report-backgrounds/wave-pink.svg'
 import bgDots from '../assets/report-backgrounds/dots.svg'
 import bgGeometric from '../assets/report-backgrounds/geometric.svg'
-
+// The above imports are handled by Vite's asset plugin, which copies the files to the build
 // Built-in PDF background templates (the PDF libraries ship none, so we bundle these).
 export const BG_TEMPLATES = [
   { id: 'wave-pink', name: 'موجات وردية', url: bgWavePink },
