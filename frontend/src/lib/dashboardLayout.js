@@ -1,13 +1,8 @@
-// Fixed-width layout for dashboard tabs. Every card is a constant BASE_WIDTH wide
-// (multiplied by the item's `width` unit) and rows simply wrap; the area scrolls
-// horizontally if a card is wider than the viewport. An item's `width` is a unit
-// count (1..4), so a width-2 card lines up with two stacked width-1 cards. The
-// card height is always CARD_HEIGHT so tall and short charts finish on the same
-// bottom edge.
+
 
 export const BASE_WIDTH = 450 // px — one width unit
 export const CARD_GAP = 16 // px — matches the flex `gap-4`
-export const CARD_HEIGHT = 320 // px — constant chart area height
+export const CARD_HEIGHT = 300 // px — constant chart area height
 
 export const WIDTH_CHOICES = [1, 2, 3, 4]
 export const DEFAULT_WIDTH = 1
@@ -25,4 +20,28 @@ export const normalizeWidth = (value) => {
 export const itemWidthPx = (value) => {
   const n = normalizeWidth(value)
   return n * BASE_WIDTH + (n - 1) * CARD_GAP
+}
+
+// Every row holds exactly this many width units, whatever the viewport size —
+// three width-1 cards, or a width-2 next to a width-1, and so on.
+export const ROW_UNITS = 3
+
+// Greedily pack items into rows of ROW_UNITS units, preserving item order. An
+// item wider than a full row (width 4) simply gets a row of its own.
+export const packRows = (items) => {
+  const rows = []
+  let row = []
+  let used = 0
+  for (const item of items) {
+    const n = normalizeWidth(item.width)
+    if (row.length && used + n > ROW_UNITS) {
+      rows.push(row)
+      row = []
+      used = 0
+    }
+    row.push(item)
+    used += n
+  }
+  if (row.length) rows.push(row)
+  return rows
 }

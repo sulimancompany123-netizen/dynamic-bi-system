@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react'
 import {
   LayoutDashboard, Loader2, ArrowLeft, Plus, Trash2, Save, Image as ImageIcon,
-  BarChart3, Users, X, Check, Eye, ChevronLeft, ChevronRight, Pencil,
+  BarChart3, Users, X, Check, Eye, ChevronLeft, ChevronRight, Pencil, Palette,
 } from 'lucide-react'
 import { apiGet, apiPut, apiPost, apiUpload } from '../api'
 import ChartView from './ChartView'
+import ChartStylePanel from './ChartStylePanel'
 import DashboardViewer from './DashboardViewer'
-import { WIDTH_CHOICES, DEFAULT_WIDTH, normalizeWidth, itemWidthPx, CARD_HEIGHT } from '../lib/dashboardLayout'
+import { WIDTH_CHOICES, DEFAULT_WIDTH, normalizeWidth, itemWidthPx, CARD_HEIGHT, packRows } from '../lib/dashboardLayout'
 
 const uid = (p) => `${p}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
 const noop = () => {}
@@ -213,6 +214,7 @@ export default function DashboardEditor({ dashboard, project, onBack }) {
   const [showAccess, setShowAccess] = useState(false)
   const [previewMode, setPreviewMode] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [stylingItemId, setStylingItemId] = useState(null) // item whose تخصيص panel is open
 
   useEffect(() => {
     const load = async () => {
@@ -284,6 +286,9 @@ export default function DashboardEditor({ dashboard, project, onBack }) {
   }
   const removeItem = (itemId) => updateActiveItems(list => list.filter(i => i.id !== itemId))
   const setItemWidth = (itemId, n) => updateActiveItems(list => list.map(i => i.id === itemId ? { ...i, width: n } : i))
+  // Styling lives on the dashboard's own copy of the chart config, so the source tab
+  // (and every other report/dashboard using that chart) is left untouched.
+  const setItemConfig = (itemId, config) => updateActiveItems(list => list.map(i => i.id === itemId ? { ...i, config } : i))
   const moveItem = (itemId, dir) => updateActiveItems(list => {
     const idx = list.findIndex(i => i.id === itemId)
     const target = idx + dir
@@ -312,7 +317,7 @@ export default function DashboardEditor({ dashboard, project, onBack }) {
   if (previewMode) {
     return (
       <div>
-        <div className="max-w-6xl mx-auto px-6 pt-4" dir="rtl">
+        <div className="w-full px-4 pt-4" dir="rtl">
           <button onClick={() => setPreviewMode(false)} className="text-sm text-[#428177] hover:text-[#054239] flex items-center gap-1 font-bold mb-2">
             <Pencil className="w-4 h-4" /> العودة للتحرير
           </button>
@@ -325,7 +330,7 @@ export default function DashboardEditor({ dashboard, project, onBack }) {
   const items = activeTab?.items || []
 
   return (
-    <div className="max-w-6xl mx-auto p-6" dir="rtl">
+    <div className="w-full p-4" dir="rtl">
       {uploading && (
         <div className="fixed inset-0 bg-white/70 z-50 flex items-center justify-center">
           <Loader2 className="w-10 h-10 animate-spin text-[#428177]" />
@@ -406,11 +411,15 @@ export default function DashboardEditor({ dashboard, project, onBack }) {
               <p className="text-sm text-gray-500">هذا التبويب فارغ. أضف مخططاً أو صورة.</p>
             </div>
           ) : (
-            <div className="flex flex-wrap gap-4 content-start overflow-x-auto">
-              {items.map(item => (
+            <div className="overflow-x-auto">
+             {/* Same fixed rows as the viewer: each row totals ROW_UNITS width units. */}
+             <div className="flex flex-col gap-4 w-max">
+              {packRows(items).map((row, rowIndex) => (
+               <div key={rowIndex} className="flex gap-4">
+                {row.map(item => (
                 <div key={item.id} style={{ width: itemWidthPx(item.width) }} className="relative group shrink-0">
                   {/* Item controls */}
-                  <div className="absolute top-2 left-2 z-10 flex items-center gap-1 bg-white/95 border border-gray-200 rounded-lg shadow-sm p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className={`absolute top-2 left-2 z-10 flex items-center gap-1 bg-white/95 border border-gray-200 rounded-lg shadow-sm p-1 transition-opacity ${stylingItemId === item.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                     <button onClick={() => moveItem(item.id, -1)} className="p-1 text-gray-500 hover:text-[#054239]" title="تحريك لليسار"><ChevronRight className="w-3.5 h-3.5" /></button>
                     <button onClick={() => moveItem(item.id, 1)} className="p-1 text-gray-500 hover:text-[#054239]" title="تحريك لليمين"><ChevronLeft className="w-3.5 h-3.5" /></button>
                     <span className="w-px h-4 bg-gray-200 mx-0.5" />
@@ -427,9 +436,30 @@ export default function DashboardEditor({ dashboard, project, onBack }) {
                         {n}
                       </button>
                     ))}
+                    {item.type !== 'image' && (
+                      <>
+                        <span className="w-px h-4 bg-gray-200 mx-0.5" />
+                        <button
+                          onClick={() => setStylingItemId(prev => prev === item.id ? null : item.id)}
+                          className={`p-1 rounded transition-colors ${stylingItemId === item.id ? 'text-white bg-[#054239]' : 'text-gray-500 hover:text-[#054239]'}`}
+                          title="تخصيص التصميم"
+                        >
+                          <Palette className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    )}
                     <span className="w-px h-4 bg-gray-200 mx-0.5" />
                     <button onClick={() => removeItem(item.id)} className="p-1 text-red-400 hover:text-red-600" title="إزالة"><Trash2 className="w-3.5 h-3.5" /></button>
                   </div>
+
+                  {stylingItemId === item.id && item.type !== 'image' && (
+                    <ChartStylePanel
+                      config={item.config || {}}
+                      fileId={item.file_id}
+                      onChange={(config) => setItemConfig(item.id, config)}
+                      onClose={() => setStylingItemId(null)}
+                    />
+                  )}
 
                   {item.type === 'image' ? (
                     <img src={item.url} alt="" style={{ height: CARD_HEIGHT }} className="w-full rounded-xl border border-gray-200 shadow-sm object-contain bg-white" />
@@ -443,7 +473,10 @@ export default function DashboardEditor({ dashboard, project, onBack }) {
                     />
                   )}
                 </div>
+                ))}
+               </div>
               ))}
+             </div>
             </div>
           )}
         </main>

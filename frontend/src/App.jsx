@@ -1181,7 +1181,8 @@ const onChartClick = (params, chart) => {
           </>
         )}
 
-        <main className="flex-1 p-6 overflow-y-auto">
+        {/* Dashboard pages are full-bleed: their own sidebars must sit flush against the page edge. */}
+        <main className={`flex-1 overflow-y-auto ${page === 'dashboard-viewer' || page === 'dashboard-editor' ? '' : 'p-6'}`}>
           {page === 'files' && (
             <FileList
               onSelectFile={handleSelectFile}

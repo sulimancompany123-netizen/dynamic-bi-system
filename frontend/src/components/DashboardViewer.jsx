@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react'
-import { LayoutDashboard, Loader2, ArrowLeft, AlertCircle, Maximize2, X, Menu, ChevronRight } from 'lucide-react'
+import { LayoutDashboard, Loader2, ArrowLeft, AlertCircle, Maximize2, X, PanelRightClose, PanelRightOpen } from 'lucide-react'
 import { apiGet } from '../api'
 import ChartView from './ChartView'
-import { itemWidthPx, CARD_HEIGHT } from '../lib/dashboardLayout'
+import { itemWidthPx, CARD_HEIGHT, packRows } from '../lib/dashboardLayout'
+
+const SIDEBAR_WIDTH = 208 // px — the open width; collapsing animates this to 0
 
 const noop = () => {}
 
@@ -71,20 +73,19 @@ export default function DashboardViewer({ dashboardId, onBack }) {
 
   return (
     <div className="flex h-full min-h-[70vh]" dir="rtl">
-      {/* Sidebar with tabs */}
-      {sidebarOpen ? (
-        <aside className="w-56 shrink-0 bg-[#054239] text-white flex flex-col rounded-r-2xl overflow-hidden">
+      {/* Sidebar with tabs — always mounted so its width can animate to/from 0 */}
+      <aside
+        style={{ width: sidebarOpen ? SIDEBAR_WIDTH : 0 }}
+        className="shrink-0 bg-[#054239] text-white overflow-hidden transition-[width] duration-300 ease-in-out"
+      >
+        {/* Fixed-width inner shell: keeps the content from reflowing mid-animation */}
+        <div style={{ width: SIDEBAR_WIDTH }} className="h-full flex flex-col">
           <div className="px-4 py-4 border-b border-white/10">
-            <div className="flex items-center justify-between mb-3">
-              <button onClick={onBack} className="text-xs text-white/70 hover:text-white flex items-center gap-1 transition-colors">
-                <ArrowLeft className="w-3.5 h-3.5" /> رجوع
-              </button>
-              <button onClick={() => setSidebarOpen(false)} title="إخفاء الشريط الجانبي" className="text-white/70 hover:text-white transition-colors">
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
+            <button onClick={onBack} className="text-xs text-white/70 hover:text-white flex items-center gap-1 transition-colors mb-3">
+              <ArrowLeft className="w-3.5 h-3.5" /> رجوع
+            </button>
             <div className="flex items-center gap-2">
-              <LayoutDashboard className="w-5 h-5 text-[#988561]" />
+              <LayoutDashboard className="w-5 h-5 text-[#988561] shrink-0" />
               <h2 className="text-sm font-bold truncate">{dashboard?.name}</h2>
             </div>
           </div>
@@ -93,7 +94,7 @@ export default function DashboardViewer({ dashboardId, onBack }) {
               <button
                 key={tab.id}
                 onClick={() => setActiveTabId(tab.id)}
-                className={`w-full text-right px-3 py-2.5 rounded-xl text-sm font-bold transition-colors ${
+                className={`w-full text-right px-3 py-2.5 rounded-xl text-sm font-bold transition-colors truncate ${
                   activeTab?.id === tab.id ? 'bg-[#428177] text-white shadow-sm' : 'text-white/80 hover:bg-white/10'
                 }`}
               >
@@ -101,50 +102,58 @@ export default function DashboardViewer({ dashboardId, onBack }) {
               </button>
             ))}
           </nav>
-        </aside>
-      ) : (
-        <button
-          onClick={() => setSidebarOpen(true)}
-          title="إظهار الشريط الجانبي"
-          className="shrink-0 self-start m-3 p-2 rounded-xl bg-[#054239] text-white hover:bg-[#002623] transition-colors shadow-sm"
-        >
-          <Menu className="w-4 h-4" />
-        </button>
-      )}
+        </div>
+      </aside>
 
       {/* Active tab content */}
-      <main className="flex-1 overflow-auto p-6 bg-gray-50">
+      <main className="flex-1 min-w-0 overflow-auto p-4 bg-gray-50">
+        <div className="mb-3">
+          <button
+            onClick={() => setSidebarOpen(o => !o)}
+            title={sidebarOpen ? 'إخفاء الشريط الجانبي' : 'إظهار الشريط الجانبي'}
+            className="p-2 rounded-xl bg-white border border-gray-200 text-gray-500 hover:text-[#054239] hover:border-[#428177] transition-colors shadow-sm"
+          >
+            {sidebarOpen ? <PanelRightClose className="w-4 h-4" /> : <PanelRightOpen className="w-4 h-4" />}
+          </button>
+        </div>
+
         {items.length === 0 ? (
           <div className="border-2 border-dashed border-gray-300 rounded-2xl p-12 text-center">
             <LayoutDashboard className="w-12 h-12 text-gray-300 mx-auto mb-3" />
             <p className="text-sm text-gray-500">لا يوجد محتوى في هذا التبويب</p>
           </div>
         ) : (
-          <div className="flex flex-wrap gap-4 content-start">
-            {items.map(item => (
-              // The wrapper owns the fixed width; the card inside fills it and the
-              // constant height keeps every card's bottom edge aligned.
-              <div key={item.id} style={{ width: itemWidthPx(item.width) }} className="relative group shrink-0">
-                <button
-                  onClick={() => setExpandedItem(item)}
-                  title="تكبير"
-                  className="absolute top-2 left-2 z-10 p-1.5 rounded-lg bg-white/95 border border-gray-200 shadow-sm text-gray-500 hover:text-[#054239] opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <Maximize2 className="w-4 h-4" />
-                </button>
-                {item.type === 'image' ? (
-                  <img src={item.url} alt="" style={{ height: CARD_HEIGHT }} className="w-full rounded-xl border border-gray-200 shadow-sm object-contain bg-white" />
-                ) : (
-                  <ChartView
-                    chart={{ ...item.config, id: item.id, chartWidth: '' }}
-                    chartData={chartData[item.id] ?? null}
-                    readOnly
-                    fixedHeight={CARD_HEIGHT}
-                    onChartClick={noop}
-                    onEdit={noop}
-                    onDelete={noop}
-                  />
-                )}
+          // Rows always add up to ROW_UNITS width units regardless of the viewport,
+          // so the page scrolls horizontally rather than reflowing into more rows.
+          <div className="flex flex-col gap-4 w-max">
+            {packRows(items).map((row, rowIndex) => (
+              <div key={rowIndex} className="flex gap-4">
+                {row.map(item => (
+                  // The wrapper owns the fixed width; the card inside fills it and the
+                  // constant height keeps every card's bottom edge aligned.
+                  <div key={item.id} style={{ width: itemWidthPx(item.width) }} className="relative group shrink-0">
+                    <button
+                      onClick={() => setExpandedItem(item)}
+                      title="تكبير"
+                      className="absolute top-2 left-2 z-10 p-1.5 rounded-lg bg-white/95 border border-gray-200 shadow-sm text-gray-500 hover:text-[#054239] opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Maximize2 className="w-4 h-4" />
+                    </button>
+                    {item.type === 'image' ? (
+                      <img src={item.url} alt="" style={{ height: CARD_HEIGHT }} className="w-full rounded-xl border border-gray-200 shadow-sm object-contain bg-white" />
+                    ) : (
+                      <ChartView
+                        chart={{ ...item.config, id: item.id, chartWidth: '' }}
+                        chartData={chartData[item.id] ?? null}
+                        readOnly
+                        fixedHeight={CARD_HEIGHT}
+                        onChartClick={noop}
+                        onEdit={noop}
+                        onDelete={noop}
+                      />
+                    )}
+                  </div>
+                ))}
               </div>
             ))}
           </div>

@@ -72,6 +72,18 @@ function makeWrapLabel(wrapChars) {
   };
 }
 
+// A user-chosen card background: hex + opacity. A null color leaves the default white card.
+function bgStyle(chart) {
+  if (!chart.bgColor) return undefined;
+  const hex = chart.bgColor.replace('#', '');
+  const full = hex.length === 3 ? hex.split('').map(c => c + c).join('') : hex;
+  const r = parseInt(full.slice(0, 2), 16);
+  const g = parseInt(full.slice(2, 4), 16);
+  const b = parseInt(full.slice(4, 6), 16);
+  const a = chart.bgOpacity == null ? 1 : chart.bgOpacity;
+  return { backgroundColor: `rgba(${r}, ${g}, ${b}, ${a})` };
+}
+
 export default function ChartView({ chart, chartData, currentFilters, globalFilters, onChartClick, onDelete, onEdit, token, fileId, readOnly = false, fixedHeight = null }) {
   const [chartOptions, setChartOptions] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -253,7 +265,10 @@ export default function ChartView({ chart, chartData, currentFilters, globalFilt
   const containerClass = chart.chartWidth === 'w-full' ? 'col-span-1 md:col-span-2' : 'col-span-1';
 
   return (
-    <div className={`bg-white border border-gray-200 rounded-xl p-4 shadow-sm relative hover:shadow-md transition-shadow ${containerClass}`}>
+    <div
+      style={bgStyle(chart)}
+      className={`${chart.bgColor ? '' : 'bg-white'} border border-gray-200 rounded-xl p-4 shadow-sm relative hover:shadow-md transition-shadow ${containerClass}`}
+    >
       {!readOnly && (
         <div className="flex items-center gap-2">
           <button onClick={onEdit} className="p-1 text-gray-400 hover:text-amber-600 transition-colors" title="تعديل خصائص المخطط">
