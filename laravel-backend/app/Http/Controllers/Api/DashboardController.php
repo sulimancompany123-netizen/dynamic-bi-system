@@ -87,6 +87,8 @@ class DashboardController extends Controller
             return response()->json(['status' => 'error', 'message' => 'غير مصرح بالوصول إلى هذه اللوحة'], 403);
         }
 
+        $computed = $this->resolveChartData($dashboard);
+
         return response()->json([
             'status' => 'success',
             'data' => [
@@ -94,7 +96,8 @@ class DashboardController extends Controller
                 'name' => $dashboard->name,
                 'project_id' => $dashboard->project_id,
                 'structure' => $dashboard->structure ?? ['tabs' => []],
-                'chart_data' => $this->resolveChartData($dashboard),
+                'chart_data' => $computed['charts'],
+                'card_data' => $computed['cards'],
                 'can_manage' => $dashboard->manageableBy($request->user()),
                 'updated_at' => $dashboard->updated_at,
             ],
@@ -221,29 +224,92 @@ class DashboardController extends Controller
     }
 
     /**
-     * Return the dashboard's chart data, using the cache when it is still fresh and
-     * otherwise recomputing it from the underlying files. Mirrors the caching in
-     * GlobalChartTreeController::show — the data stays current when a source file is
-     * replaced because a stale/empty cache forces a recompute.
+     * Return the dashboard's computed data — ['charts' => [...], 'cards' => [...]] —
+     * using the cache when it is still fresh and otherwise recomputing it from the
+     * underlying files. Mirrors the caching in GlobalChartTreeController::show: the
+     * data stays current when a source file is replaced because a stale/empty cache
+     * forces a recompute.
      */
     protected function resolveChartData(Dashboard $dashboard): array
     {
+        $cached = $dashboard->chart_data;
+
+        // Caches written before KPI cards existed hold a bare chart map; treat those as
+        // stale so the cards get computed rather than read as chart entries.
         $cacheValid = $dashboard->chart_data_cached_at !== null
             && $dashboard->updated_at !== null
             && $dashboard->chart_data_cached_at >= $dashboard->updated_at
-            && $dashboard->chart_data !== null;
+            && is_array($cached)
+            && array_key_exists('charts', $cached)
+            && array_key_exists('cards', $cached);
 
         if ($cacheValid) {
-            return $dashboard->chart_data;
+            return $cached;
         }
 
-        $chartData = $this->computeChartData($dashboard);
+        $computed = [
+            'charts' => $this->computeChartData($dashboard),
+            'cards' => $this->computeCardData($dashboard),
+        ];
 
-        $dashboard->chart_data = $chartData;
+        $dashboard->chart_data = $computed;
         $dashboard->chart_data_cached_at = now();
         $dashboard->saveQuietly();
 
-        return $chartData;
+        return $computed;
+    }
+
+    /**
+     * Compute every KPI card's value across all tabs, grouped by source file so each
+     * file is read once. Keyed by card id, which the frontend matches against each
+     * rendered card.
+     */
+    protected function computeCardData(Dashboard $dashboard): array
+    {
+        $structure = $dashboard->structure ?? [];
+        $tabs = $structure['tabs'] ?? [];
+
+        $byFile = [];
+        foreach ($tabs as $tab) {
+            foreach (($tab['cards'] ?? []) as $card) {
+                $fileId = $card['file_id'] ?? null;
+                if (! $fileId || empty($card['id']) || empty($card['column'])) {
+                    continue;
+                }
+                $byFile[$fileId][] = [
+                    'id' => $card['id'],
+                    'column' => $card['column'],
+                    'metric' => $card['metric'] ?? 'count',
+                    'value' => $card['value'] ?? '',
+                ];
+            }
+        }
+
+        if (empty($byFile)) {
+            return [];
+        }
+
+        $fileReader = app(FileReaderService::class);
+        $cardData = [];
+
+        foreach ($byFile as $fileId => $cards) {
+            $file = DataFile::find($fileId);
+            if (! $file) {
+                continue;
+            }
+            try {
+                $sheet = $fileReader->getSheetName($file->file_path);
+                $result = $fileReader->cardMetrics($file->file_path, $sheet, $cards);
+                foreach (($result['cards'] ?? []) as $cardId => $value) {
+                    $cardData[$cardId] = $value;
+                }
+            } catch (\Exception $e) {
+                // Skip files that fail to read; their cards simply render a dash.
+                continue;
+            }
+        }
+
+        return $cardData;
     }
 
     /**

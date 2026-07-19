@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react'
 import { LayoutDashboard, Loader2, ArrowLeft, AlertCircle, Maximize2, X, PanelRightClose, PanelRightOpen } from 'lucide-react'
 import { apiGet } from '../api'
 import ChartView from './ChartView'
-import { itemWidthPx, CARD_HEIGHT, packRows } from '../lib/dashboardLayout'
+import { itemWidthPx, packRows, unitWidthFor, cardHeightFor } from '../lib/dashboardLayout'
+import useElementWidth from '../lib/useElementWidth'
+import KpiCard from './KpiCard'
 
 const SIDEBAR_WIDTH = 208 // px — the open width; collapsing animates this to 0
 
@@ -16,9 +18,13 @@ export default function DashboardViewer({ dashboardId, onBack }) {
   const [error, setError] = useState(null)
   const [dashboard, setDashboard] = useState(null)
   const [chartData, setChartData] = useState({})
+  const [cardData, setCardData] = useState({})
   const [activeTabId, setActiveTabId] = useState(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [expandedItem, setExpandedItem] = useState(null)
+  // Cards are sized from the real content width, so a full row fits the screen at
+  // 100% zoom instead of relying on the user zooming out.
+  const [contentRef, contentWidth] = useElementWidth()
 
   useEffect(() => {
     let cancelled = false
@@ -31,6 +37,7 @@ export default function DashboardViewer({ dashboardId, onBack }) {
         if (res.status === 'success') {
           setDashboard(res.data)
           setChartData(res.data.chart_data || {})
+          setCardData(res.data.card_data || {})
           const tabs = res.data.structure?.tabs || []
           setActiveTabId(tabs[0]?.id || null)
         } else {
@@ -70,6 +77,9 @@ export default function DashboardViewer({ dashboardId, onBack }) {
   const tabs = dashboard?.structure?.tabs || []
   const activeTab = tabs.find(t => t.id === activeTabId) || tabs[0]
   const items = activeTab?.items || []
+  const cards = activeTab?.cards || []
+  const unitWidth = unitWidthFor(contentWidth)
+  const cardHeight = cardHeightFor(unitWidth)
 
   return (
     <div className="flex h-full min-h-[70vh]" dir="rtl">
@@ -106,7 +116,7 @@ export default function DashboardViewer({ dashboardId, onBack }) {
       </aside>
 
       {/* Active tab content */}
-      <main className="flex-1 min-w-0 overflow-auto p-4 bg-gray-50">
+      <main ref={contentRef} className="flex-1 min-w-0 overflow-auto p-4 bg-gray-50">
         <div className="mb-3">
           <button
             onClick={() => setSidebarOpen(o => !o)}
@@ -117,21 +127,31 @@ export default function DashboardViewer({ dashboardId, onBack }) {
           </button>
         </div>
 
-        {items.length === 0 ? (
+        {/* KPI cards band — always above the charts. */}
+        {cards.length > 0 && (
+          <div className="grid gap-3 mb-5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
+            {cards.map(card => (
+              <KpiCard key={card.id} card={card} result={cardData[card.id]} />
+            ))}
+          </div>
+        )}
+
+        {items.length === 0 && cards.length === 0 ? (
           <div className="border-2 border-dashed border-gray-300 rounded-2xl p-12 text-center">
             <LayoutDashboard className="w-12 h-12 text-gray-300 mx-auto mb-3" />
             <p className="text-sm text-gray-500">لا يوجد محتوى في هذا التبويب</p>
           </div>
-        ) : (
-          // Rows always add up to ROW_UNITS width units regardless of the viewport,
-          // so the page scrolls horizontally rather than reflowing into more rows.
+        ) : items.length === 0 ? null : (
+          // Rows always add up to ROW_UNITS width units regardless of the viewport;
+          // the units themselves shrink to fit, and only below MIN_UNIT_WIDTH does
+          // the row start scrolling horizontally instead.
           <div className="flex flex-col gap-4 w-max">
             {packRows(items).map((row, rowIndex) => (
               <div key={rowIndex} className="flex gap-4">
                 {row.map(item => (
-                  // The wrapper owns the fixed width; the card inside fills it and the
-                  // constant height keeps every card's bottom edge aligned.
-                  <div key={item.id} style={{ width: itemWidthPx(item.width) }} className="relative group shrink-0">
+                  // The wrapper owns the width; the card inside fills it and the shared
+                  // height keeps every card's bottom edge aligned.
+                  <div key={item.id} style={{ width: itemWidthPx(item.width, unitWidth) }} className="relative group shrink-0">
                     <button
                       onClick={() => setExpandedItem(item)}
                       title="تكبير"
@@ -140,13 +160,13 @@ export default function DashboardViewer({ dashboardId, onBack }) {
                       <Maximize2 className="w-4 h-4" />
                     </button>
                     {item.type === 'image' ? (
-                      <img src={item.url} alt="" style={{ height: CARD_HEIGHT }} className="w-full rounded-xl border border-gray-200 shadow-sm object-contain bg-white" />
+                      <img src={item.url} alt="" style={{ height: cardHeight }} className="w-full rounded-xl border border-gray-200 shadow-sm object-contain bg-white" />
                     ) : (
                       <ChartView
                         chart={{ ...item.config, id: item.id, chartWidth: '' }}
                         chartData={chartData[item.id] ?? null}
                         readOnly
-                        fixedHeight={CARD_HEIGHT}
+                        fixedHeight={cardHeight}
                         onChartClick={noop}
                         onEdit={noop}
                         onDelete={noop}

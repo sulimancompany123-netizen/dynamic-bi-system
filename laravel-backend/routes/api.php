@@ -24,6 +24,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/table-data', [DataFileController::class, 'tableData']);
     Route::post('/chart-data', [DataFileController::class, 'chartData']);
     Route::post('/batch-chart-data', [DataFileController::class, 'batchChartData']);
+    Route::post('/card-metrics', [DataFileController::class, 'cardMetrics']);
     Route::get('/column-categories', [DataFileController::class, 'columnCategories']);
     Route::post('/sheet-columns', [DataFileController::class, 'sheetColumns']);
     Route::post('/select-sheet', [DataFileController::class, 'selectSheet']);

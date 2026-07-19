@@ -487,6 +487,22 @@ class FileReaderService
         ]);
     }
 
+    /**
+     * Compute a batch of KPI card values ([{id, column, metric, value}, ...]) from one
+     * file in a single read.
+     */
+    public function cardMetrics(string $filePath, string $sheet, array $cards, array $filters = []): array
+    {
+        $effectivePath = $this->ensureParquet($filePath, $sheet);
+        $effectiveSheet = str_ends_with($effectivePath, '.parquet') ? '' : $sheet;
+        return $this->run('card-metrics', [
+            'path' => $effectivePath,
+            'sheet' => $effectiveSheet,
+            'cards' => base64_encode(json_encode($cards)),
+            'filters' => base64_encode(json_encode(empty($filters) ? new \stdClass() : $filters)),
+        ]);
+    }
+
     public function sheetColumns(string $filePath, string $sheet): array
     {
         $effectivePath = $this->ensureParquet($filePath, $sheet);

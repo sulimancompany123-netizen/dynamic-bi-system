@@ -453,6 +453,56 @@ class DataFileController extends Controller
         return response()->json($result);
     }
 
+    /**
+     * Compute KPI card values for an arbitrary set of cards, each naming its own file,
+     * column and metric. Cards are grouped by file so every file is read once. Used by
+     * the dashboard editor to preview a card the moment it is configured.
+     */
+    public function cardMetrics(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'cards' => 'required|array',
+            'cards.*.id' => 'required',
+            'cards.*.file_id' => 'required|integer|exists:data_files,id',
+            'cards.*.column' => 'required|string',
+            'cards.*.metric' => 'required|string',
+            'cards.*.value' => 'nullable',
+        ]);
+
+        $byFile = [];
+        foreach ($validated['cards'] as $card) {
+            $byFile[$card['file_id']][] = [
+                'id' => $card['id'],
+                'column' => $card['column'],
+                'metric' => $card['metric'],
+                'value' => $card['value'] ?? '',
+            ];
+        }
+
+        $results = [];
+        foreach ($byFile as $fileId => $cards) {
+            $dataFile = DataFile::find($fileId);
+            if (! $dataFile) {
+                continue;
+            }
+            $this->authorizeFileAccess($request, $dataFile);
+
+            try {
+                $sheet = $this->reader->getSheetName($dataFile->file_path);
+                $result = $this->reader->cardMetrics($dataFile->file_path, $sheet, $cards);
+                foreach (($result['cards'] ?? []) as $cardId => $value) {
+                    $results[$cardId] = $value;
+                }
+            } catch (\Exception $e) {
+                // A file that fails to read leaves its cards without a value; the UI
+                // shows a dash rather than failing the whole request.
+                continue;
+            }
+        }
+
+        return response()->json(['status' => 'success', 'cards' => $results]);
+    }
+
     public function sheetColumns(Request $request): JsonResponse
     {
         $request->validate([

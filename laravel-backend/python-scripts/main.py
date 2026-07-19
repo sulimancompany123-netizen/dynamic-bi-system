@@ -447,6 +447,124 @@ def cmd_batch_chart_data(args: argparse.Namespace) -> Dict:
     return {"status": "success", "charts": results}
 
 
+CARD_METRICS = ("count", "distinct", "sum", "average", "min", "max", "mode", "value_count")
+
+
+def _decode_arg(raw, default):
+    """Decode a base64-encoded JSON argument, tolerating a plain-JSON or empty value
+    (the CLI defaults are plain '{}', which is not valid base64)."""
+    if not raw:
+        return default
+    try:
+        return json.loads(base64.b64decode(raw).decode('utf-8'))
+    except Exception:
+        pass
+    try:
+        return json.loads(raw)
+    except Exception:
+        return default
+
+
+# Values that are technically present in the column but mean "missing" — they come from
+# files where blanks were typed out or a NaN leaked in as text. The `mode` card skips them
+# so it shows the most repeated *real* value.
+_MISSING_TOKENS = {"", "nan", "nat", "none", "null", "n/a", "#n/a", "na", "undefined"}
+
+
+def _is_missing_token(value) -> bool:
+    return str(value).strip().lower() in _MISSING_TOKENS
+
+
+def _compute_card_metric(series: pd.Series, metric: str, target: str) -> Dict:
+    """One KPI card's value. Returns {value, kind} where kind is 'number' or 'text';
+    a value of None means the metric could not be computed for this column."""
+    non_null = series.dropna()
+
+    if metric == "count":
+        return {"value": int(non_null.shape[0]), "kind": "number"}
+
+    if metric == "distinct":
+        return {"value": int(non_null.nunique()), "kind": "number"}
+
+    if metric == "mode":
+        if non_null.empty:
+            return {"value": None, "kind": "text"}
+        counts = non_null.value_counts()
+        for label, freq in counts.items():
+            if not _is_missing_token(label):
+                return {"value": str(label), "kind": "text", "detail": int(freq)}
+        return {"value": None, "kind": "text"}
+
+    if metric == "value_count":
+        # Compare as text so "5" typed by the user matches a numeric 5 in the column.
+        matches = non_null.astype(str) == str(target)
+        return {"value": int(matches.sum()), "kind": "number"}
+
+    # The remaining metrics are numeric-only; a non-numeric column yields None.
+    numeric = pd.to_numeric(non_null, errors="coerce").dropna()
+    if numeric.empty:
+        return {"value": None, "kind": "number"}
+
+    if metric == "sum":
+        result = float(numeric.sum())
+    elif metric == "average":
+        result = float(numeric.mean())
+    elif metric == "min":
+        result = float(numeric.min())
+    elif metric == "max":
+        result = float(numeric.max())
+    else:
+        return {"value": None, "kind": "number"}
+
+    if not math.isfinite(result):
+        return {"value": None, "kind": "number"}
+    # Keep whole numbers whole; round the rest so the card shows a readable value.
+    return {"value": int(result) if float(result).is_integer() else round(result, 2), "kind": "number"}
+
+
+def cmd_card_metrics(args: argparse.Namespace) -> Dict:
+    """Compute a batch of KPI card values from one file, reading it a single time."""
+    path = args.path
+    sheet = args.sheet
+    cards = _decode_arg(args.cards, [])
+    filters = _decode_arg(getattr(args, 'filters', ''), {})
+
+    try:
+        if HAS_PARQUET and path.endswith('.parquet'):
+            needed_cols = {c.get("column") for c in cards if c.get("column")}
+            needed_cols.update(filters.keys())
+            parquet_filters = _build_parquet_filters(filters)
+            if parquet_filters:
+                df = pd.read_parquet(path, columns=list(needed_cols) if needed_cols else None, filters=parquet_filters)
+            else:
+                df = pd.read_parquet(path, columns=list(needed_cols) if needed_cols else None)
+        else:
+            df = load_dataframe(path, sheet=sheet, cache_dir=getattr(args, 'cache_dir', ''))
+            df = apply_filters(df, filters)
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
+
+    results = {}
+    for card in cards:
+        card_id = card.get("id")
+        column = card.get("column", "")
+        metric = card.get("metric", "count")
+
+        if metric not in CARD_METRICS:
+            results[card_id] = {"value": None, "kind": "text", "error": f"Unknown metric: {metric}"}
+            continue
+        if column not in df.columns:
+            results[card_id] = {"value": None, "kind": "text", "error": f"Column '{column}' not found."}
+            continue
+
+        try:
+            results[card_id] = _compute_card_metric(df[column], metric, card.get("value", ""))
+        except Exception as e:
+            results[card_id] = {"value": None, "kind": "text", "error": str(e)}
+
+    return {"status": "success", "cards": results}
+
+
 def cmd_chart_data(args: argparse.Namespace) -> Dict:
     path = args.path
     sheet = args.sheet
@@ -869,6 +987,13 @@ def main():
     p_batch.add_argument("--filters", default="{}")
     p_batch.add_argument("--cache-dir", default="")
 
+    p_cards = subparsers.add_parser("card-metrics", help="Compute KPI card values for a set of columns")
+    p_cards.add_argument("--path", required=True)
+    p_cards.add_argument("--sheet", required=True)
+    p_cards.add_argument("--cards", required=True)
+    p_cards.add_argument("--filters", default="{}")
+    p_cards.add_argument("--cache-dir", default="")
+
     p_cols = subparsers.add_parser("sheet-columns", help="List columns of a sheet")
     p_cols.add_argument("--path", required=True)
     p_cols.add_argument("--sheet", required=True)
@@ -969,6 +1094,7 @@ def main():
         "table-data": cmd_table_data,
         "chart-data": cmd_chart_data,
         "batch-chart-data": cmd_batch_chart_data,
+        "card-metrics": cmd_card_metrics,
         "sheet-columns": cmd_sheet_columns,
         "concat-sheets": cmd_concat_sheets,
         "merge-multiple-sheets": cmd_merge_multiple_sheets,

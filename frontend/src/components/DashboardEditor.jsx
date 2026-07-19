@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react'
 import {
   LayoutDashboard, Loader2, ArrowLeft, Plus, Trash2, Save, Image as ImageIcon,
-  BarChart3, Users, X, Check, Eye, ChevronLeft, ChevronRight, Pencil, Palette,
+  BarChart3, Users, X, Check, Eye, ChevronLeft, ChevronRight, Pencil, Palette, LayoutList,
 } from 'lucide-react'
 import { apiGet, apiPut, apiPost, apiUpload } from '../api'
 import ChartView from './ChartView'
 import ChartStylePanel from './ChartStylePanel'
+import AddCardModal from './AddCardModal'
+import KpiCard from './KpiCard'
 import DashboardViewer from './DashboardViewer'
-import { WIDTH_CHOICES, DEFAULT_WIDTH, normalizeWidth, itemWidthPx, CARD_HEIGHT, packRows } from '../lib/dashboardLayout'
+import { WIDTH_CHOICES, DEFAULT_WIDTH, normalizeWidth, itemWidthPx, packRows, unitWidthFor, cardHeightFor } from '../lib/dashboardLayout'
+import useElementWidth from '../lib/useElementWidth'
 
 const uid = (p) => `${p}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
 const noop = () => {}
@@ -211,10 +214,14 @@ export default function DashboardEditor({ dashboard, project, onBack }) {
   const [previewData, setPreviewData] = useState({}) // itemId -> chart data
   const [saving, setSaving] = useState(false)
   const [showAddChart, setShowAddChart] = useState(false)
+  const [showAddCard, setShowAddCard] = useState(false)
+  const [cardValues, setCardValues] = useState({}) // card id -> {value, kind}
   const [showAccess, setShowAccess] = useState(false)
   const [previewMode, setPreviewMode] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [stylingItemId, setStylingItemId] = useState(null) // item whose تخصيص panel is open
+  // Size the cards from the real canvas width, matching what the viewer will show.
+  const [canvasRef, canvasWidth] = useElementWidth()
 
   useEffect(() => {
     const load = async () => {
@@ -227,6 +234,7 @@ export default function DashboardEditor({ dashboard, project, onBack }) {
           setTabs(loadedTabs)
           setActiveTabId(loadedTabs[0]?.id || null)
           setPreviewData(res.data.chart_data || {})
+          setCardValues(res.data.card_data || {})
         }
       } catch (err) {
         alert(err.message || 'فشل تحميل اللوحة')
@@ -243,9 +251,15 @@ export default function DashboardEditor({ dashboard, project, onBack }) {
     setTabs(prev => prev.map(t => t.id === activeTab.id ? { ...t, items: updater(t.items || []) } : t))
   }
 
+  // KPI cards live in their own `cards` array on the tab, separate from `items`, so
+  // they always render as a band above the charts.
+  const updateActiveCards = (updater) => {
+    setTabs(prev => prev.map(t => t.id === activeTab.id ? { ...t, cards: updater(t.cards || []) } : t))
+  }
+
   // --- Tab operations ---
   const addTab = () => {
-    const newTab = { id: uid('tab'), name: `تبويب ${tabs.length + 1}`, items: [] }
+    const newTab = { id: uid('tab'), name: `تبويب ${tabs.length + 1}`, cards: [], items: [] }
     setTabs(prev => [...prev, newTab])
     setActiveTabId(newTab.id)
   }
@@ -284,6 +298,30 @@ export default function DashboardEditor({ dashboard, project, onBack }) {
       setUploading(false)
     }
   }
+  // Add a card, then compute its value straight away so the editor shows a real number
+  // instead of a placeholder until the next save.
+  const addCard = async (spec) => {
+    const card = { id: uid('card'), ...spec }
+    updateActiveCards(list => [...list, card])
+    try {
+      const res = await apiPost('/api/card-metrics', {
+        cards: [{ id: card.id, file_id: card.file_id, column: card.column, metric: card.metric, value: card.value ?? '' }],
+      })
+      if (res.status === 'success') setCardValues(prev => ({ ...prev, ...(res.cards || {}) }))
+    } catch (err) {
+      console.error('Failed to compute card value:', err)
+    }
+  }
+  const removeCard = (cardId) => updateActiveCards(list => list.filter(c => c.id !== cardId))
+  const moveCard = (cardId, dir) => updateActiveCards(list => {
+    const idx = list.findIndex(c => c.id === cardId)
+    const target = idx + dir
+    if (idx < 0 || target < 0 || target >= list.length) return list
+    const copy = [...list]
+    ;[copy[idx], copy[target]] = [copy[target], copy[idx]]
+    return copy
+  })
+
   const removeItem = (itemId) => updateActiveItems(list => list.filter(i => i.id !== itemId))
   const setItemWidth = (itemId, n) => updateActiveItems(list => list.map(i => i.id === itemId ? { ...i, width: n } : i))
   // Styling lives on the dashboard's own copy of the chart config, so the source tab
@@ -328,6 +366,9 @@ export default function DashboardEditor({ dashboard, project, onBack }) {
   }
 
   const items = activeTab?.items || []
+  const cards = activeTab?.cards || []
+  const unitWidth = unitWidthFor(canvasWidth)
+  const cardHeight = cardHeightFor(unitWidth)
 
   return (
     <div className="w-full p-4" dir="rtl">
@@ -397,6 +438,9 @@ export default function DashboardEditor({ dashboard, project, onBack }) {
             <button onClick={() => setShowAddChart(true)} className="bg-[#054239] hover:bg-[#002623] text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2">
               <BarChart3 className="w-4 h-4" /> إضافة مخطط
             </button>
+            <button onClick={() => setShowAddCard(true)} className="bg-[#428177] hover:bg-[#1f5f54] text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2">
+              <LayoutList className="w-4 h-4" /> إضافة بطاقة
+            </button>
             <label className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer border border-gray-200">
               <ImageIcon className="w-4 h-4" /> إضافة صورة
               <input type="file" accept="image/*" onChange={handleUploadImage} className="hidden" />
@@ -405,19 +449,34 @@ export default function DashboardEditor({ dashboard, project, onBack }) {
             <span className="mr-auto text-[11px] text-gray-400">مرّر فوق أي مخطط لتحديد عرضه (1–4)</span>
           </div>
 
-          {items.length === 0 ? (
+          {/* KPI cards band — always above the charts. */}
+          {cards.length > 0 && (
+            <div className="grid gap-3 mb-5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
+              {cards.map(card => (
+                <KpiCard key={card.id} card={card} result={cardValues[card.id]}>
+                  <div className="absolute top-1.5 left-1.5 z-10 flex items-center gap-0.5 bg-white/95 border border-gray-200 rounded-lg shadow-sm p-0.5 opacity-0 group-hover/card:opacity-100 transition-opacity">
+                    <button onClick={() => moveCard(card.id, -1)} className="p-0.5 text-gray-500 hover:text-[#054239]" title="تحريك لليمين"><ChevronRight className="w-3 h-3" /></button>
+                    <button onClick={() => moveCard(card.id, 1)} className="p-0.5 text-gray-500 hover:text-[#054239]" title="تحريك لليسار"><ChevronLeft className="w-3 h-3" /></button>
+                    <button onClick={() => removeCard(card.id)} className="p-0.5 text-red-400 hover:text-red-600" title="إزالة"><Trash2 className="w-3 h-3" /></button>
+                  </div>
+                </KpiCard>
+              ))}
+            </div>
+          )}
+
+          {items.length === 0 && cards.length === 0 ? (
             <div className="border-2 border-dashed border-gray-300 rounded-2xl p-12 text-center">
               <LayoutDashboard className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-sm text-gray-500">هذا التبويب فارغ. أضف مخططاً أو صورة.</p>
+              <p className="text-sm text-gray-500">هذا التبويب فارغ. أضف مخططاً أو بطاقة أو صورة.</p>
             </div>
-          ) : (
-            <div className="overflow-x-auto">
+          ) : items.length === 0 ? null : (
+            <div ref={canvasRef} className="overflow-x-auto">
              {/* Same fixed rows as the viewer: each row totals ROW_UNITS width units. */}
              <div className="flex flex-col gap-4 w-max">
               {packRows(items).map((row, rowIndex) => (
                <div key={rowIndex} className="flex gap-4">
                 {row.map(item => (
-                <div key={item.id} style={{ width: itemWidthPx(item.width) }} className="relative group shrink-0">
+                <div key={item.id} style={{ width: itemWidthPx(item.width, unitWidth) }} className="relative group shrink-0">
                   {/* Item controls */}
                   <div className={`absolute top-2 left-2 z-10 flex items-center gap-1 bg-white/95 border border-gray-200 rounded-lg shadow-sm p-1 transition-opacity ${stylingItemId === item.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                     <button onClick={() => moveItem(item.id, -1)} className="p-1 text-gray-500 hover:text-[#054239]" title="تحريك لليسار"><ChevronRight className="w-3.5 h-3.5" /></button>
@@ -462,13 +521,13 @@ export default function DashboardEditor({ dashboard, project, onBack }) {
                   )}
 
                   {item.type === 'image' ? (
-                    <img src={item.url} alt="" style={{ height: CARD_HEIGHT }} className="w-full rounded-xl border border-gray-200 shadow-sm object-contain bg-white" />
+                    <img src={item.url} alt="" style={{ height: cardHeight }} className="w-full rounded-xl border border-gray-200 shadow-sm object-contain bg-white" />
                   ) : (
                     <ChartView
                       chart={{ ...item.config, id: item.id, chartWidth: '' }}
                       chartData={previewData[item.id] ?? null}
                       readOnly
-                      fixedHeight={CARD_HEIGHT}
+                      fixedHeight={cardHeight}
                       onChartClick={noop} onEdit={noop} onDelete={noop}
                     />
                   )}
@@ -483,6 +542,7 @@ export default function DashboardEditor({ dashboard, project, onBack }) {
       </div>
 
       {showAddChart && <AddChartModal projectId={project.id} onAdd={addCharts} onClose={() => setShowAddChart(false)} />}
+      {showAddCard && <AddCardModal projectId={project.id} onAdd={addCard} onClose={() => setShowAddCard(false)} />}
       {showAccess && <AccessModal dashboardId={dashboard.id} onClose={() => setShowAccess(false)} />}
     </div>
   )
