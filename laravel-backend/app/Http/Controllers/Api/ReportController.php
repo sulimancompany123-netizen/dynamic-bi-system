@@ -204,8 +204,12 @@ class ReportController extends Controller
 
     public function uploadImage(Request $request): JsonResponse
     {
+        // NOTE: can't use the `image` rule here — it relies on getimagesize(), which doesn't
+        // recognize SVG, so it would reject every SVG before the mimes list is checked. Instead we
+        // whitelist the extensions (mimes) AND the content-sniffed MIME types (mimetypes), which
+        // together validate both the extension and the actual file contents.
         $request->validate([
-            "file" => "required|image|mimes:jpeg,png,gif,webp|max:5120",
+            "file" => "required|file|max:5120|mimes:jpeg,png,gif,webp,svg|mimetypes:image/jpeg,image/png,image/gif,image/webp,image/svg+xml",
         ]);
 
         $path = $request->file("file")->store("report-images", "public");

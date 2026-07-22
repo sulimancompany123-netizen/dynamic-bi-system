@@ -265,6 +265,13 @@ export default function ReportEditor({ report, project, onBack, fonts = [], isAd
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
+    // SVG is allowed as an inline report image but NOT as a page background: a background is
+    // drawn full-bleed on every page and rasterized during export, where an SVG can scale/tile
+    // unpredictably — so restrict backgrounds to raster formats.
+    if (file.type === 'image/svg+xml' || /\.svg$/i.test(file.name)) {
+      alert('صيغة SVG غير مدعومة لصورة الخلفية')
+      return
+    }
     setUploadingBg(true)
     try {
       const res = await apiUpload('/api/reports/upload-image', file)
@@ -695,11 +702,19 @@ export default function ReportEditor({ report, project, onBack, fonts = [], isAd
       const prevPbVis = pbEls.map(el => el.style.visibility)
       pbEls.forEach(el => { el.style.visibility = 'hidden' })
 
-      // Render the report area to a high-resolution canvas
+      // Render the report area to a high-resolution canvas. The whole page (text + backgrounds)
+      // is baked into this bitmap, so its scale sets the PDF's effective DPI. Because the content
+      // is Arabic (RTL), we can't fall back to true vector text (jsPDF/svg2pdf can't shape/bidi
+      // Arabic), so raster resolution is the ONLY lever for text sharpness. 4x is ~425 DPI —
+      // effectively print quality — at a ~4x memory/file-size cost vs the original scale 2. If a
+      // very long report ever runs out of memory during export, dial this back toward 3.
+      // (Charts are drawn separately as vector/hi-res, so they're already sharp — this is only
+      // about the rasterized page content.)
+      const EXPORT_SCALE = 4
       let canvas
       try {
         canvas = await html2canvas(area, {
-          scale: 2,
+          scale: EXPORT_SCALE,
           useCORS: true,
           backgroundColor: bg ? null : '#ffffff',
         })
@@ -818,7 +833,10 @@ export default function ReportEditor({ report, project, onBack, fonts = [], isAd
           drawPageNumberOnCanvas(pctx, pnPageNo, totalRenderPages, pnCfg, { pxPerMm, pageWidth, pageHeight, marginX, marginY })
         }
 
-        const pageImg = pageCanvas.toDataURL('image/jpeg', 0.92)
+        // High JPEG quality: the visible "pixelation" of black-on-white text is largely JPEG
+        // ringing around the glyph edges, so keep compression light. 0.98 nearly eliminates it
+        // while still shrinking the file enough to avoid jsPDF's string-length overflow.
+        const pageImg = pageCanvas.toDataURL('image/jpeg', 0.98)
         if (i > 0) pdf.addPage()
         pdf.addImage(pageImg, 'JPEG', 0, 0, pageWidth, pageHeight)
         // The page (1-based) this slice landed on, plus the scale used (content is shrunk only
@@ -1225,7 +1243,7 @@ export default function ReportEditor({ report, project, onBack, fonts = [], isAd
         type="file"
         ref={fileInputRef}
         onChange={handleImageUpload}
-        accept="image/*"
+        accept="image/*,.svg"
         className="hidden"
       />
       <input
